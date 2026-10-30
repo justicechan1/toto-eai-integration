@@ -12,9 +12,11 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * 과제 API가 내려준 접속 정보를 복호화한다.
- * 키: 전화번호 문자열(UTF-8)의 SHA-1 해시 앞 16바이트
- * 암호문: Base64 디코드 후 AES/ECB/PKCS5Padding
+ * 접속 정보 복호화 담당. 과제 API가 암호화해서 준 DB/FTP 접속 정보를 평문으로 바꾼다.
+ * - 입력: 암호화된 값 (ORDER_TB_CONN 등은 URL, ID, PASSWORD 필드마다 따로 암호화되어 있음)
+ * - 출력: 평문 접속 정보 (예: URL = jdbc:oracle:thin:@...)
+ * - 규칙: 키 = 전화번호(UTF-8)의 SHA-1 해시 앞 16바이트, 복호화 = Base64 디코드 후 AES/ECB/PKCS5Padding
+ * - 사용: Main의 decrypt 명령, 이후 DB/FTP 연결 단계
  */
 public class ConnectionDecryptor {
 

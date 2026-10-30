@@ -14,8 +14,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 과제 제공 API(RecruitingTest)를 호출해 지원자 키, 암호화된 접속 정보,
- * 샘플 데이터를 JSON 그대로 반환한다.
+ * 과제 제공 API(RecruitingTest) 호출 담당. 과제 수행에 필요한 정보를 받아온다.
+ * - 입력: 이름, 전화번호, 이메일 (Basic 인증으로 POST 요청)
+ * - 출력: 응답 JSON (APPLICANT_KEY, 암호화된 DB/FTP 접속 정보, SAMPLE_DATA)
+ * - 사용: Main의 fetch 명령. 응답은 data/에 저장해 다시 호출하지 않는다.
  */
 public class RecruitingClient {
 

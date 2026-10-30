@@ -9,7 +9,10 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 
 /**
- * config.properties(git 제외)를 읽는다. 필수 값이 비어 있으면 해당 키 이름과 함께 즉시 실패한다.
+ * 설정 파일(config.properties) 담당. 이름, 전화번호, API 계정 같은 값을 읽어 다른 클래스에 넘겨준다.
+ * - 입력: config.properties (개인정보가 있어 git 제외)
+ * - 검사: 필수 값이 비어 있으면 키 이름과 함께 즉시 실패, 전화번호는 010-1234-5678 형식만 허용
+ * - 사용: Main이 시작할 때 한 번 읽어서 각 기능에 값을 전달
  */
 public class AppConfig {
 

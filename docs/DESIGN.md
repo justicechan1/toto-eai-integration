@@ -27,14 +27,30 @@
 | ID 형식: 대문자 1자 + 숫자 3자리 | 입력값 검증, SHIPMENT_ID 채번 규칙 정의 |
 | 접속 정보는 암호화되어 제공 | 복호화 결과와 개인정보는 `config.properties`(git 제외)에만 둔다 |
 
+## 주문 XML 구조
+
+샘플 데이터(EUC-KR)를 분석한 결과다.
+
+```xml
+<HEADER>  <USER_ID/> <NAME/> <ADDRESS/>  </HEADER>           <!-- 주문자 -->
+<ITEM>    <USER_ID/> <ITEM_ID/> <ITEM_NAME/> <PRICE/> </ITEM> <!-- 주문 상품 -->
+```
+
+| 특징 | 처리 |
+|---|---|
+| 루트 요소가 없다 (HEADER, ITEM이 최상위에 나열) | `<ROOT>`로 감싸서 파싱한다 |
+| ITEM은 바로 앞 HEADER가 아니라 USER_ID로 주문자와 연결된다 | USER_ID 기준으로 HEADER와 ITEM을 합쳐 주문 1건(ORDER_TB 1행)을 만든다 |
+| HEADER가 없는 USER_ID의 ITEM이 있다 (샘플 70건 중 7건) | 이름·주소를 채울 수 없어 저장하지 않고 따로 모아 기록한다 |
+| ITEM이 없는 HEADER가 있다 | 주문이 아니므로 무시한다 |
+
 ## 기술 선택
 
 - Java 21 + Gradle. 화면이 필요 없는 일반 애플리케이션이므로 웹 프레임워크는 쓰지 않는다.
 - HTTP 수신은 JDK 내장 `HttpServer`, 암호화는 JDK `javax.crypto`를 쓴다.
 - 외부 라이브러리는 꼭 필요한 것(JDBC 드라이버, FTP 클라이언트)만 추가한다.
+- 제공 DB는 Oracle이다 (복호화한 접속 정보로 확인).
+- XML 파싱은 JDK DOM을 쓰고, 외부 입력이므로 DTD를 차단한다(XXE 방지).
 
 ## 미결정 사항 (샘플 데이터 확인 후 결정)
-- DBMS 종류 (복호화한 접속 정보로 확인)
-- 주문 XML 구조, 한 요청에 주문 여러 건 포함 여부
 - 영수증 파일 형식 (CSV, TXT, XML 중 선택)
 - STATUS 값 목록 최종 확정

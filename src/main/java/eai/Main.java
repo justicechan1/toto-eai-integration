@@ -4,10 +4,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import eai.config.AppConfig;
 import eai.crypto.ConnectionDecryptor;
+import eai.order.OrderXmlParser;
 import eai.recruiting.RecruitingClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 
+/**
+ * 프로그램 시작점. 실행 인자로 받은 명령에 따라 각 기능을 조립해 실행한다.
+ * - fetch   : 과제 API 호출 후 응답을 data/에 저장 (RecruitingClient)
+ * - decrypt : 저장된 응답의 접속 정보 복호화 (ConnectionDecryptor)
+ * - parse   : 저장된 응답의 샘플 주문 XML 파싱 (OrderXmlParser)
+ * 모든 명령은 시작할 때 config.properties를 읽는다 (AppConfig).
+ */
 public class Main {
 
     /** API 응답 원본. 다음 단계에서 API를 다시 호출하지 않도록 로컬에 저장한다(git 제외). */
@@ -20,8 +29,20 @@ public class Main {
         switch (command) {
             case "fetch" -> fetch(config);      // 과제 API 호출 후 응답 저장
             case "decrypt" -> decrypt(config);  // 저장된 응답의 접속 정보 복호화
-            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt\"");
+            case "parse" -> parse();            // 샘플 주문 XML 파싱 결과 확인
+            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse\"");
         }
+    }
+
+    /** 저장된 응답의 SAMPLE_DATA(Base64, EUC-KR XML)를 파싱해 결과를 확인한다. */
+    private static void parse() throws Exception {
+        JsonNode response = new ObjectMapper().readTree(RESPONSE_FILE.toFile());
+        byte[] xml = Base64.getDecoder().decode(response.get("SAMPLE_DATA").asText());  // Base64 -> EUC-KR 바이트
+        OrderXmlParser.Result result = new OrderXmlParser().parse(xml);
+
+        System.out.println("orders: " + result.orders().size() + ", unmatched items: " + result.unmatchedItems().size());
+        result.orders().stream().limit(3).forEach(order -> System.out.println("  " + order));  // 앞 3건만 출력
+        result.unmatchedItems().forEach(item -> System.out.println("  [no HEADER] " + item));  // 주문자 없는 상품
     }
 
     /** 저장된 응답의 접속 정보를 복호화해 확인한다. 비밀번호는 화면에 출력하지 않는다. */

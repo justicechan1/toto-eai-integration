@@ -8,6 +8,7 @@
 cp config.example.properties config.properties   # 값 채우기
 ./gradlew run --args="fetch"                     # 과제 정보 수신 후 data/에 저장
 ./gradlew run --args="decrypt"                   # 저장된 접속 정보 복호화 확인 (비밀번호 제외)
+./gradlew run --args="parse"                     # 샘플 주문 XML 파싱 결과 확인
 ```
 
 `config.properties`에는 개인정보와 복호화된 접속 정보가 들어가므로 git에 올리지 않는다.
