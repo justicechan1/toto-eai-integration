@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
+/** AppConfig 테스트. 빈 값 거부와 전화번호 형식 검사를 확인한다. */
 class AppConfigTest {
 
     private static AppConfig config(String key, String value) {  // 파일 없이 키 하나짜리 설정 생성

@@ -13,6 +13,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 
+/** ConnectionDecryptor 테스트. 키 생성 규칙과 복호화가 과제 가이드대로 동작하는지 확인한다. */
 class ConnectionDecryptorTest {
 
     private static final String PHONE = "010-1234-5678";
