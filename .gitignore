@@ -1,4 +1,4 @@
-# build
+# 빌드 결과
 .gradle/
 build/
 out/
@@ -8,9 +8,10 @@ out/
 *.iml
 .vscode/
 
-# secrets: decrypted connection info, phone number, API account
+# 비밀 정보: 복호화된 접속 정보, 전화번호, API 계정
 config.properties
 
-# runtime output
+# 실행 결과물
 logs/
 receipts/
+data/
