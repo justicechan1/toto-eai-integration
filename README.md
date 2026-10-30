@@ -12,4 +12,4 @@ cp config.example.properties config.properties   # 값 채우기
 `config.properties`에는 개인정보와 복호화된 접속 정보가 들어가므로 git에 올리지 않는다.
 
 ## 문서
-- [개발 계획 및 커밋 로드맵](docs/PLAN.md)
+- [설계 문서](docs/DESIGN.md)
