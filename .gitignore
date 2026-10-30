@@ -1,0 +1,16 @@
+# build
+.gradle/
+build/
+out/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# secrets: decrypted connection info, phone number, API account
+config.properties
+
+# runtime output
+logs/
+receipts/
