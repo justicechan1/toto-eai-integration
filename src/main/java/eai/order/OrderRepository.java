@@ -67,6 +67,24 @@ public class OrderRepository {
         }
     }
 
+    // 내 키로 저장된 주문 전체 (ORDER_ID 순)
+    public List<SavedOrder> findAll() throws SQLException {
+        List<SavedOrder> result = new ArrayList<>();
+        try (Connection conn = db.connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT ORDER_ID, USER_ID, ITEM_ID, NAME, ADDRESS, ITEM_NAME, PRICE, CREATE_TIME FROM " + db.table()
+                             + " WHERE APPLICANT_KEY = ? ORDER BY ORDER_ID")) {
+            ps.setString(1, applicantKey);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Order order = new Order(rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7));
+                    result.add(new SavedOrder(rs.getString(1), order, rs.getTimestamp(8).toLocalDateTime()));
+                }
+            }
+        }
+        return result;
+    }
+
     // 이미 저장된 주문의 (USER_ID, ITEM_ID) 목록
     private Set<String> existingKeys(Connection conn) throws SQLException {
         Set<String> keys = new HashSet<>();
