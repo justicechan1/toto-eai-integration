@@ -13,12 +13,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 과제 제공 API(RecruitingTest) 호출 담당. 과제 수행에 필요한 정보를 받아온다.
- * - 입력: 이름, 전화번호, 이메일 (Basic 인증으로 POST 요청)
- * - 출력: 응답 JSON (APPLICANT_KEY, 암호화된 DB/FTP 접속 정보, SAMPLE_DATA)
- * - 사용: Main의 fetch 명령. 응답은 data/에 저장해 다시 호출하지 않는다.
- */
 public class RecruitingClient {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();  // Java 객체 <-> JSON 문자열
@@ -29,12 +23,14 @@ public class RecruitingClient {
     private final URI uri;
     private final String authorization;
 
+    // 생성자, Basic 인증 헤더 값 생성
     public RecruitingClient(String url, String username, String password) {
         this.uri = URI.create(url);
         String credentials = username + ":" + password;  // 아이디:비밀번호 문자열
         this.authorization = "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));  // 헤더 값: Basic + Base64 인코딩
     }
 
+    // 이름, 전화번호, 이메일로 과제 API 호출 후 응답 JSON 반환
     public JsonNode requestAssignment(String name, String phone, String email) throws IOException, InterruptedException {
         Map<String, String> body = new LinkedHashMap<>();  // 요청 본문
         body.put("NAME", name);

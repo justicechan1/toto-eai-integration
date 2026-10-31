@@ -11,24 +11,19 @@ import java.util.Map;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
-/**
- * 접속 정보 복호화 담당. 과제 API가 암호화해서 준 DB/FTP 접속 정보를 평문으로 바꾼다.
- * - 입력: 암호화된 값 (ORDER_TB_CONN 등은 URL, ID, PASSWORD 필드마다 따로 암호화되어 있음)
- * - 출력: 평문 접속 정보 (예: URL = jdbc:oracle:thin:@...)
- * - 규칙: 키 = 전화번호(UTF-8)의 SHA-1 해시 앞 16바이트, 복호화 = Base64 디코드 후 AES/ECB/PKCS5Padding
- * - 사용: Main의 decrypt 명령, 이후 DB/FTP 연결 단계
- */
 public class ConnectionDecryptor {
 
     private static final String TRANSFORMATION = "AES/ECB/PKCS5Padding";  // 알고리즘/블록 방식/패딩 규칙
 
     private final SecretKeySpec key;
 
+    // 생성자, 전화번호로 AES 키를 한 번만 생성
     public ConnectionDecryptor(String phone) {
         this.key = new SecretKeySpec(deriveKey(phone), "AES");  // 전화번호로 키 생성(JDK 클래스)
     }
 
-    static byte[] deriveKey(String phone) {  // 테스트에서 검증하도록 static
+    // 키 생성: SHA-1(전화번호) 앞 16바이트 (테스트에서 검증하도록 static)
+    static byte[] deriveKey(String phone) {
         try {
             byte[] sha1 = MessageDigest.getInstance("SHA-1").digest(phone.getBytes(StandardCharsets.UTF_8));  // 전화번호 -> SHA-1 해시(20바이트)
             return Arrays.copyOf(sha1, 16);  // AES-128 키 길이(16바이트)만큼 앞에서 자름
@@ -37,6 +32,7 @@ public class ConnectionDecryptor {
         }
     }
 
+    // 암호문 1개 복호화
     public String decrypt(String base64) {
         try {
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
@@ -48,7 +44,7 @@ public class ConnectionDecryptor {
         }
     }
 
-    /** ORDER_TB_CONN 같은 접속 정보 객체는 필드마다 따로 암호화되어 있어 필드 단위로 복호화한다. */
+    // 접속 정보 객체의 모든 필드 복호화 (필드마다 따로 암호화되어 있음)
     public Map<String, String> decryptFields(JsonNode encrypted) {
         Map<String, String> result = new LinkedHashMap<>();  // 응답의 필드 순서 유지
         encrypted.fields().forEachRemaining(field -> result.put(field.getKey(), decrypt(field.getValue().asText())));
