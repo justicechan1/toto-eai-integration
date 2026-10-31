@@ -8,6 +8,8 @@ import eai.db.DbInfo;
 import eai.order.Order;
 import eai.order.OrderRepository;
 import eai.order.OrderXmlParser;
+import eai.receipt.FtpUploader;
+import eai.receipt.ReceiptService;
 import eai.recruiting.AssignmentInfo;
 import eai.recruiting.RecruitingClient;
 import eai.server.OrderApiServer;
@@ -42,15 +44,27 @@ public class Main {
             case "db-check" -> dbCheck(config); // 주문/운송 DB 연결 확인
             case "serve" -> serve(config);      // 주문 수신 API 서버 실행
             case "send-sample" -> sendSample(args.length > 1 ? Integer.parseInt(args[1]) : null);  // 샘플 주문 XML 전송 (건수 지정 가능)
-            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse|db-check|serve|send-sample [건수]\"");
+            case "receipts" -> receipts(config);  // 영수증 없는 주문의 영수증 업로드
+            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse|db-check|serve|send-sample [건수]|receipts\"");
         }
     }
 
-    // 주문 수신 API 서버 실행 (종료: Ctrl+C)
+    // 주문 수신 API 서버 실행, 저장 후 영수증 업로드까지 (종료: Ctrl+C)
     private static void serve(AppConfig config) throws Exception {
         AssignmentInfo info = AssignmentInfo.load(RESPONSE_FILE, config.phone());
-        new OrderApiServer(new OrderRepository(info.orderDb(), info.applicantKey())).start(PORT);
+        OrderRepository repository = new OrderRepository(info.orderDb(), info.applicantKey());
+        ReceiptService receipts = new ReceiptService(repository, new FtpUploader(info.ftp()), config.require("applicant.name"));
+        new OrderApiServer(repository, receipts).start(PORT);
         System.out.println("Order API listening on http://localhost:" + PORT + OrderApiServer.PATH);
+    }
+
+    // 영수증이 없는 주문의 영수증을 FTP에 업로드 (실패분 재시도용)
+    private static void receipts(AppConfig config) throws Exception {
+        AssignmentInfo info = AssignmentInfo.load(RESPONSE_FILE, config.phone());
+        OrderRepository repository = new OrderRepository(info.orderDb(), info.applicantKey());
+        ReceiptService.Result result = new ReceiptService(repository, new FtpUploader(info.ftp()), config.require("applicant.name")).uploadMissing();
+        System.out.println("uploaded: " + result.uploaded());
+        System.out.println("failed: " + result.failed());
     }
 
     // 샘플 주문 XML을 주문 수신 API로 전송 후 응답 출력 (count가 있으면 앞에서부터 그 건수만)
