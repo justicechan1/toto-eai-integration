@@ -18,6 +18,7 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'  // 테스트 라이브러리
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.h2database:h2:2.2.224'  // 테스트용 메모리 DB (제공 DB는 DELETE 불가라 테스트에 쓰지 않음)
 }
 
 application {
