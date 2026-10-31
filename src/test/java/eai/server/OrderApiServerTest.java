@@ -37,7 +37,7 @@ class OrderApiServerTest {
                     + " NAME VARCHAR(100), ADDRESS VARCHAR(100), ITEM_NAME VARCHAR(100), PRICE VARCHAR(100), STATUS VARCHAR(100),"
                     + " PRIMARY KEY (ORDER_ID, APPLICANT_KEY))");
         }
-        server = new OrderApiServer(new OrderRepository(db, "KEY1")).start(0);
+        server = new OrderApiServer(new OrderRepository(db, "KEY1"), null).start(0);
         uri = URI.create("http://localhost:" + server.getAddress().getPort() + OrderApiServer.PATH);
     }
 

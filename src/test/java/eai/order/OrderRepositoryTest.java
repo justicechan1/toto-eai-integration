@@ -1,6 +1,7 @@
 package eai.order;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import eai.db.DbInfo;
@@ -80,6 +81,18 @@ class OrderRepositoryTest {
         new OrderRepository(db, "OTHER").saveAll(List.of(order("USER01", "ITEM01")));
 
         assertEquals(List.of("A001"), new OrderRepository(db, "KEY1").saveAll(List.of(order("USER01", "ITEM01"))).savedIds());
+    }
+
+    @Test
+    void findAllReturnsMyOrdersWithIdAndTime() throws SQLException {  // 내 주문만 ID 순으로, 저장 시각 포함
+        new OrderRepository(db, "OTHER").saveAll(List.of(order("USER09", "ITEM09")));
+        OrderRepository repository = new OrderRepository(db, "KEY1");
+        repository.saveAll(List.of(order("USER01", "ITEM01"), order("USER02", "ITEM02")));
+
+        List<SavedOrder> saved = repository.findAll();
+        assertEquals(List.of("A001", "A002"), saved.stream().map(SavedOrder::orderId).toList());
+        assertEquals(order("USER02", "ITEM02"), saved.get(1).order());
+        assertNotNull(saved.get(0).createTime());
     }
 
     @Test
