@@ -6,22 +6,35 @@
 ## 전체 흐름
 
 ```
-[주문 XML] --HTTP POST--> (1) 주문 수신 API --INSERT--> ORDER_TB (STATUS=RECEIVED)
+[주문 XML] --HTTP POST--> (1) 주문 수신 API --INSERT--> ORDER_TB (STATUS='N')
                                    |
-                                   +--> (2) 영수증 생성 --업로드--> FTP (STATUS=RECEIPT_SENT)
+                                   +--> (2) 영수증 생성 --업로드--> FTP
 
-(3) 배송 배치 (주기 실행) --SELECT 미배송 주문--> ORDER_TB
-                          --INSERT--> SHIPMENT_TB --UPDATE--> ORDER_TB (STATUS=SHIPPED)
+(3) 배송 배치 (주기 실행) --SELECT STATUS='N'--> ORDER_TB
+                          --INSERT--> SHIPMENT_TB --UPDATE--> ORDER_TB (STATUS='Y')
 
-(4) 모든 단계: 주문 ID별 처리 이력 로그 + 실패 시 STATUS=*_FAILED
+(4) 모든 단계: 주문 ID별 처리 이력 로그 (단계, 결과, 실패 원인)
 ```
+
+## 제공 DB 확인 결과
+
+접속 정보로 직접 조회한 결과다.
+
+| 항목 | 내용 | 영향 |
+|---|---|---|
+| DBMS | Oracle 19c, 문자셋 AL32UTF8 | 한글 저장 가능. JDBC 드라이버 ojdbc11 사용 |
+| `ORDER_TB.STATUS` | CHECK 제약 `STATUS IN ('N', 'Y')` | STATUS는 배송 등록 여부만 표시한다 (N: 미배송, Y: 배송 등록 완료). 단계별 상태는 DB가 아니라 로그로 추적한다 |
+| `ORDER_ID`, `SHIPMENT_ID` | CHECK 제약 `^[A-Z][0-9]{3}$` | 형식이 틀리면 DB가 거부한다. 채번 시 같은 규칙을 지킨다 |
+| `ORDER_TB.CREATE_TIME`, `SHIPMENT_TB.CREATE_DATE` | 문서에 없는 컬럼, 기본값 `SYSDATE` | INSERT 시 값을 넣지 않는다. 시연 시 "당일 날짜 기준 조회"에 쓴다 |
+| 테이블 소유자 | `RECRUIT` 스키마, 접속 계정은 `APPLICANT` | 테이블명만으로 접근된다 (시노님) |
 
 ## 제약에서 나온 설계 결정
 
 | 제약 | 결정 |
 |---|---|
-| DB 권한 SELECT/INSERT/UPDATE만, DDL 불가 | 처리 추적은 `ORDER_TB.STATUS` + 로컬 로그 파일로 한다. 별도 이력 테이블 없음 |
-| DELETE 불가 | 재처리는 STATUS 기반으로 한다. 같은 주문 재수신 시 PK 중복을 감지해 건너뛴다 |
+| DB 권한 SELECT/INSERT/UPDATE만, DDL 불가 | 별도 이력 테이블을 만들 수 없으므로 처리 추적은 로컬 로그 파일로 한다 |
+| STATUS는 'N', 'Y'만 허용 | 배송 배치는 STATUS='N'인 주문만 처리하고 'Y'로 바꿔 중복 등록을 막는다 |
+| DELETE 불가 | 잘못 넣은 데이터를 지울 수 없으므로 저장 전에 검증한다. 같은 주문 재수신 시 PK 중복을 감지해 건너뛴다 |
 | FTP 덮어쓰기/삭제 불가 | 파일명에 지원자 이름 + 주문 ID + 타임스탬프를 넣어 항상 새 파일로 올린다 |
 | 샘플 XML이 EUC-KR | 수신·파싱 시 인코딩을 명시하고, 한글 깨짐을 테스트로 확인한다 |
 | ID 형식: 대문자 1자 + 숫자 3자리 | 입력값 검증, SHIPMENT_ID 채번 규칙 정의 |
@@ -48,9 +61,7 @@
 - Java 21 + Gradle. 화면이 필요 없는 일반 애플리케이션이므로 웹 프레임워크는 쓰지 않는다.
 - HTTP 수신은 JDK 내장 `HttpServer`, 암호화는 JDK `javax.crypto`를 쓴다.
 - 외부 라이브러리는 꼭 필요한 것(JDBC 드라이버, FTP 클라이언트)만 추가한다.
-- 제공 DB는 Oracle이다 (복호화한 접속 정보로 확인).
 - XML 파싱은 JDK DOM을 쓰고, 외부 입력이므로 DTD를 차단한다(XXE 방지).
 
 ## 미결정 사항 (샘플 데이터 확인 후 결정)
 - 영수증 파일 형식 (CSV, TXT, XML 중 선택)
-- STATUS 값 목록 최종 확정
