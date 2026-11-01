@@ -70,11 +70,32 @@ public class OrderRepository {
 
     // 내 키로 저장된 주문 전체 (ORDER_ID 순)
     public List<SavedOrder> findAll() throws SQLException {
+        return find("");
+    }
+
+    // 배송 등록 전 주문 (STATUS='N', ORDER_ID 순)
+    public List<SavedOrder> findPending() throws SQLException {
+        return find(" AND STATUS = 'N'");
+    }
+
+    // 배송 등록 완료 표시 (N -> Y), 바뀐 행 수 반환
+    public int markShipped(String orderId) throws SQLException {
+        try (Connection conn = db.connect();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE " + db.table() + " SET STATUS = 'Y' WHERE ORDER_ID = ? AND APPLICANT_KEY = ? AND STATUS = 'N'")) {
+            ps.setString(1, orderId);
+            ps.setString(2, applicantKey);
+            return ps.executeUpdate();
+        }
+    }
+
+    // 조건에 맞는 내 주문 조회
+    private List<SavedOrder> find(String condition) throws SQLException {
         List<SavedOrder> result = new ArrayList<>();
         try (Connection conn = db.connect();
              PreparedStatement ps = conn.prepareStatement(
                      "SELECT ORDER_ID, USER_ID, ITEM_ID, NAME, ADDRESS, ITEM_NAME, PRICE, CREATE_TIME FROM " + db.table()
-                             + " WHERE APPLICANT_KEY = ? ORDER BY ORDER_ID")) {
+                             + " WHERE APPLICANT_KEY = ?" + condition + " ORDER BY ORDER_ID")) {
             ps.setString(1, applicantKey);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {

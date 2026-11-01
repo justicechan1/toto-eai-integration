@@ -10,9 +10,10 @@ cp config.example.properties config.properties   # 값 채우기
 ./gradlew run --args="decrypt"                   # 저장된 접속 정보 복호화 확인 (비밀번호 제외)
 ./gradlew run --args="parse"                     # 샘플 주문 XML 파싱 결과 확인
 ./gradlew run --args="db-check"                  # 주문/운송 DB 연결 및 테이블 확인
-./gradlew run --args="serve"                     # 주문 수신 API 실행 (POST http://localhost:8080/orders, 본문: EUC-KR XML)
+./gradlew run --args="serve"                     # 주문 수신 API 실행 (POST http://localhost:8080/orders, 본문: EUC-KR XML) + 배송 배치 60초 주기 실행
 ./gradlew run --args="send-sample 1"             # 다른 터미널에서 샘플 주문 1건만 API로 전송 (건수 생략 시 전체)
 ./gradlew run --args="receipts"                  # 영수증이 없는 주문의 영수증을 FTP에 업로드 (실패분 재시도)
+./gradlew run --args="ship"                      # 배송 배치 1회 실행 (STATUS='N' 주문 -> SHIPMENT_TB 등록 -> 'Y')
 ```
 
 `config.properties`에는 개인정보와 복호화된 접속 정보가 들어가므로 git에 올리지 않는다.

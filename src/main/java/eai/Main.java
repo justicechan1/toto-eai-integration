@@ -13,6 +13,8 @@ import eai.receipt.ReceiptService;
 import eai.recruiting.AssignmentInfo;
 import eai.recruiting.RecruitingClient;
 import eai.server.OrderApiServer;
+import eai.shipment.ShipmentBatch;
+import eai.shipment.ShipmentRepository;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -26,11 +28,14 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
     static final Path RESPONSE_FILE = Path.of("data", "recruiting-response.json");  // API 응답 저장 위치 (git 제외)
     static final int PORT = 8080;  // 주문 수신 API 포트
+    static final int SHIP_INTERVAL_SECONDS = 60;  // 배송 배치 실행 주기
 
     // 실행 인자로 받은 명령 실행
     public static void main(String[] args) throws Exception {
@@ -45,17 +50,44 @@ public class Main {
             case "serve" -> serve(config);      // 주문 수신 API 서버 실행
             case "send-sample" -> sendSample(args.length > 1 ? Integer.parseInt(args[1]) : null);  // 샘플 주문 XML 전송 (건수 지정 가능)
             case "receipts" -> receipts(config);  // 영수증 없는 주문의 영수증 업로드
-            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse|db-check|serve|send-sample [건수]|receipts\"");
+            case "ship" -> printShipResult(shipmentBatch(config).runOnce());  // 배송 배치 1회 실행
+            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse|db-check|serve|send-sample [건수]|receipts|ship\"");
         }
     }
 
-    // 주문 수신 API 서버 실행, 저장 후 영수증 업로드까지 (종료: Ctrl+C)
+    // 주문 수신 API 서버 실행 + 배송 배치 주기 실행 (종료: Ctrl+C)
     private static void serve(AppConfig config) throws Exception {
         AssignmentInfo info = AssignmentInfo.load(RESPONSE_FILE, config.phone());
         OrderRepository repository = new OrderRepository(info.orderDb(), info.applicantKey());
         ReceiptService receipts = new ReceiptService(repository, new FtpUploader(info.ftp()), config.require("applicant.name"));
         new OrderApiServer(repository, receipts).start(PORT);
         System.out.println("Order API listening on http://localhost:" + PORT + OrderApiServer.PATH);
+
+        ShipmentBatch batch = shipmentBatch(config);
+        Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(() -> {
+            try {
+                printShipResult(batch.runOnce());
+            } catch (Exception e) {  // 예외가 나도 다음 주기는 계속 실행
+                System.out.println("ship batch error: " + e.getMessage());
+            }
+        }, SHIP_INTERVAL_SECONDS, SHIP_INTERVAL_SECONDS, TimeUnit.SECONDS);
+        System.out.println("Shipment batch every " + SHIP_INTERVAL_SECONDS + "s");
+    }
+
+    // 배송 배치 생성 (주문 DB, 운송 DB)
+    private static ShipmentBatch shipmentBatch(AppConfig config) throws Exception {
+        AssignmentInfo info = AssignmentInfo.load(RESPONSE_FILE, config.phone());
+        return new ShipmentBatch(new OrderRepository(info.orderDb(), info.applicantKey()),
+                new ShipmentRepository(info.shipmentDb(), info.applicantKey()));
+    }
+
+    // 배송 배치 결과 출력 (처리할 주문이 없으면 출력 생략)
+    private static void printShipResult(ShipmentBatch.Result result) {
+        if (result.shipped().isEmpty() && result.failed().isEmpty()) {
+            return;
+        }
+        System.out.println("shipped (ORDER_ID=SHIPMENT_ID): " + result.shipped());
+        System.out.println("failed: " + result.failed());
     }
 
     // 영수증이 없는 주문의 영수증을 FTP에 업로드 (실패분 재시도용)
