@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import eai.db.DbInfo;
+import eai.log.ProcessLog;
 import eai.order.Order;
 import eai.order.OrderRepository;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -15,14 +17,19 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** ShipmentBatch 테스트. 메모리 DB(H2)에서 배송 등록, Y 변경, 중복 방지, 부분 실패 복구를 확인한다. */
 class ShipmentBatchTest {
+
+    @TempDir
+    Path tempDir;
 
     private DbInfo orderDb;
     private DbInfo shipmentDb;
     private OrderRepository orders;
     private ShipmentBatch batch;
+    private ProcessLog log;
 
     @BeforeEach
     void createTables() throws SQLException {  // 제공 DB와 같은 PK, CHECK 제약 (SHIPMENT_TB.ADDRESS는 실패 테스트용으로 짧게)
@@ -46,7 +53,8 @@ class ShipmentBatchTest {
                         CHECK (REGEXP_LIKE(SHIPMENT_ID, '^[A-Z][0-9]{3}$')))""");
         }
         orders = new OrderRepository(orderDb, "KEY1");
-        batch = new ShipmentBatch(orders, new ShipmentRepository(shipmentDb, "KEY1"));
+        log = new ProcessLog(tempDir.resolve("process.log"));
+        batch = new ShipmentBatch(orders, new ShipmentRepository(shipmentDb, "KEY1"), log);
     }
 
     private static Order order(String userId, String itemId, String address) {
@@ -87,7 +95,7 @@ class ShipmentBatchTest {
     }
 
     @Test
-    void recoversWhenShipmentExistsButOrderStillN() throws SQLException {  // 지난 실행에서 등록 후 Y 변경만 실패한 경우
+    void recoversWhenShipmentExistsButOrderStillN() throws Exception {  // 지난 실행에서 등록 후 Y 변경만 실패한 경우
         orders.saveAll(List.of(order("USER01", "ITEM01", "서울")));
         try (Connection conn = shipmentDb.connect(); Statement st = conn.createStatement()) {
             st.execute("INSERT INTO SHIPMENT_TB (SHIPMENT_ID, APPLICANT_KEY, ORDER_ID, ITEM_ID, ADDRESS) VALUES ('A001', 'KEY1', 'A001', 'ITEM01', '서울')");
@@ -96,10 +104,11 @@ class ShipmentBatchTest {
         assertEquals(Map.of("A001", "A001"), batch.runOnce().shipped());  // 기존 배송을 찾아 Y만 변경
         assertEquals(List.of("1"), rows("SELECT COUNT(*) FROM SHIPMENT_TB"));
         assertEquals(List.of("Y"), rows("SELECT STATUS FROM ORDER_TB"));
+        assertTrue(log.find("A001").get(0).endsWith("SHIPMENT_ID=A001, STATUS=Y (already shipped, status only)"));
     }
 
     @Test
-    void continuesWhenOneOrderFails() throws SQLException {  // 한 건 실패해도 나머지는 처리, 실패 건은 N 유지
+    void continuesWhenOneOrderFails() throws Exception {  // 한 건 실패해도 나머지는 처리, 실패 건은 N 유지
         orders.saveAll(List.of(order("USER01", "ITEM01", "서울"), order("USER02", "ITEM02", "주소".repeat(20)), order("USER03", "ITEM03", "부산")));
 
         ShipmentBatch.Result result = batch.runOnce();
@@ -107,6 +116,7 @@ class ShipmentBatchTest {
         assertEquals(Map.of("A001", "A001", "A003", "A002"), result.shipped());
         assertEquals(List.of("A002"), List.copyOf(result.failed().keySet()));
         assertEquals(List.of("Y", "N", "Y"), rows("SELECT STATUS FROM ORDER_TB ORDER BY ORDER_ID"));
+        assertTrue(log.find("A002").get(0).contains("| A002 | SHIP | FAIL | "));  // 실패 원인이 이력에 남음
     }
 
     @Test

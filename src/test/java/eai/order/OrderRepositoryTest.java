@@ -65,7 +65,7 @@ class OrderRepositoryTest {
         OrderRepository.SaveResult result = repository.saveAll(List.of(order("USER01", "ITEM01"), order("USER02", "ITEM02")));
 
         assertEquals(List.of("A002"), result.savedIds());
-        assertEquals(List.of(order("USER01", "ITEM01")), result.duplicates());
+        assertEquals(List.of(new OrderRepository.Duplicate("A001", order("USER01", "ITEM01"))), result.duplicates());  // 기존 주문 ID와 함께
     }
 
     @Test
