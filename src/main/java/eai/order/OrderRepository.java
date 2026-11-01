@@ -7,17 +7,27 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 public class OrderRepository {
 
     private final DbInfo db;
     private final String applicantKey;
 
-    // 저장 결과 (저장된 주문 ID 목록, 이미 저장되어 건너뛴 주문 목록)
-    public record SaveResult(List<String> savedIds, List<Order> duplicates) {
+    // 저장 결과 (저장된 주문 ID -> 주문, 이미 저장되어 건너뛴 주문 목록)
+    public record SaveResult(Map<String, Order> saved, List<Duplicate> duplicates) {
+
+        // 저장된 주문 ID 목록
+        public List<String> savedIds() {
+            return List.copyOf(saved.keySet());
+        }
+    }
+
+    // 건너뛴 주문 (이미 저장된 주문 ID, 받은 주문)
+    public record Duplicate(String orderId, Order order) {
     }
 
     // 생성자, 주문 DB와 지원자 키 지정
@@ -32,20 +42,22 @@ public class OrderRepository {
         try (Connection conn = db.connect()) {
             conn.setAutoCommit(false);  // 전부 저장 또는 전부 취소
             try {
-                Set<String> savedKeys = existingKeys(conn);
+                Map<String, String> savedKeys = existingKeys(conn);  // (USER_ID, ITEM_ID) -> ORDER_ID
                 String lastId = maxOrderId(conn);
-                List<String> savedIds = new ArrayList<>();
-                List<Order> duplicates = new ArrayList<>();
+                Map<String, Order> saved = new LinkedHashMap<>();
+                List<Duplicate> duplicates = new ArrayList<>();
 
                 try (PreparedStatement ps = conn.prepareStatement(
                         "INSERT INTO " + db.table() + " (ORDER_ID, APPLICANT_KEY, USER_ID, ITEM_ID, NAME, ADDRESS, ITEM_NAME, PRICE, STATUS)"
                                 + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'N')")) {  // 신규 주문은 미배송(N)
                     for (Order order : orders) {
-                        if (!savedKeys.add(key(order.userId(), order.itemId()))) {  // 이미 저장된 주문
-                            duplicates.add(order);
+                        String key = key(order.userId(), order.itemId());
+                        if (savedKeys.containsKey(key)) {  // 이미 저장된 주문
+                            duplicates.add(new Duplicate(savedKeys.get(key), order));
                             continue;
                         }
                         lastId = IdGenerator.next(lastId);
+                        savedKeys.put(key, lastId);  // 같은 요청 안의 중복도 막음
                         ps.setString(1, lastId);
                         ps.setString(2, applicantKey);
                         ps.setString(3, order.userId());
@@ -55,12 +67,12 @@ public class OrderRepository {
                         ps.setString(7, order.itemName());
                         ps.setString(8, order.price());
                         ps.addBatch();
-                        savedIds.add(lastId);
+                        saved.put(lastId, order);
                     }
                     ps.executeBatch();  // 한 번에 전송
                 }
                 conn.commit();
-                return new SaveResult(savedIds, duplicates);
+                return new SaveResult(saved, duplicates);
             } catch (SQLException | RuntimeException e) {
                 conn.rollback();  // 일부만 저장되지 않도록 취소
                 throw e;
@@ -107,14 +119,14 @@ public class OrderRepository {
         return result;
     }
 
-    // 이미 저장된 주문의 (USER_ID, ITEM_ID) 목록
-    private Set<String> existingKeys(Connection conn) throws SQLException {
-        Set<String> keys = new HashSet<>();
-        try (PreparedStatement ps = conn.prepareStatement("SELECT USER_ID, ITEM_ID FROM " + db.table() + " WHERE APPLICANT_KEY = ?")) {
+    // 이미 저장된 주문 ((USER_ID, ITEM_ID) -> ORDER_ID)
+    private Map<String, String> existingKeys(Connection conn) throws SQLException {
+        Map<String, String> keys = new HashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement("SELECT USER_ID, ITEM_ID, ORDER_ID FROM " + db.table() + " WHERE APPLICANT_KEY = ?")) {
             ps.setString(1, applicantKey);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    keys.add(key(rs.getString(1), rs.getString(2)));
+                    keys.put(key(rs.getString(1), rs.getString(2)), rs.getString(3));
                 }
             }
         }

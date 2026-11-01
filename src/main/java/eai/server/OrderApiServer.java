@@ -3,6 +3,10 @@ package eai.server;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import eai.log.ProcessLog;
+import eai.log.ProcessLog.Result;
+import eai.log.ProcessLog.Stage;
+import eai.order.Order;
 import eai.order.OrderItem;
 import eai.order.OrderRepository;
 import eai.order.OrderXmlParser;
@@ -25,11 +29,13 @@ public class OrderApiServer {
     private final OrderXmlParser parser = new OrderXmlParser();
     private final OrderRepository repository;
     private final ReceiptService receipts;
+    private final ProcessLog log;
 
-    // 생성자, 주문 저장소와 영수증 업로드 지정 (receipts가 null이면 영수증 단계 생략)
-    public OrderApiServer(OrderRepository repository, ReceiptService receipts) {
+    // 생성자, 주문 저장소, 영수증 업로드, 처리 이력 지정 (receipts가 null이면 영수증 단계 생략)
+    public OrderApiServer(OrderRepository repository, ReceiptService receipts, ProcessLog log) {
         this.repository = repository;
         this.receipts = receipts;
+        this.log = log;
     }
 
     // 지정한 포트로 서버 시작
@@ -49,6 +55,7 @@ public class OrderApiServer {
             }
             byte[] body = readBody(exchange.getRequestBody());
             if (body == null) {
+                log.write("-", Stage.RECEIVE, Result.FAIL, "413 body too large");
                 respond(exchange, 413, Map.of("error", "Request body exceeds " + MAX_BODY_BYTES + " bytes"));
                 return;
             }
@@ -57,16 +64,28 @@ public class OrderApiServer {
             try {
                 parsed = parser.parse(body);
             } catch (IllegalArgumentException e) {  // XML 형식 오류, 필수 값 누락
+                log.write("-", Stage.RECEIVE, Result.FAIL, "400 " + e.getMessage());
                 respond(exchange, 400, Map.of("error", e.getMessage()));
                 return;
+            }
+            log.write("-", Stage.RECEIVE, Result.OK, "orders=" + parsed.orders().size() + ", unmatched=" + parsed.unmatchedItems().size());
+            for (OrderItem item : parsed.unmatchedItems()) {  // 주문자 없는 상품은 저장하지 않은 이유를 남김
+                log.write(item.userId() + "/" + item.itemId(), Stage.SAVE, Result.SKIP, "no HEADER for USER_ID");
             }
 
             OrderRepository.SaveResult saved;
             try {
                 saved = repository.saveAll(parsed.orders());
             } catch (SQLException e) {  // DB 오류, 전체 롤백됨
+                for (Order order : parsed.orders()) {
+                    log.write(order.userId() + "/" + order.itemId(), Stage.SAVE, Result.FAIL, "rolled back: " + e.getMessage());
+                }
                 respond(exchange, 500, Map.of("error", "DB error: " + e.getMessage()));
                 return;
+            }
+            saved.saved().forEach((orderId, order) -> log.write(orderId, Stage.SAVE, Result.OK, order.userId() + "/" + order.itemId()));
+            for (OrderRepository.Duplicate dup : saved.duplicates()) {  // 이미 저장된 주문 ID로 기록해 trace로 찾을 수 있게
+                log.write(dup.orderId(), Stage.SAVE, Result.SKIP, "already saved, " + dup.order().userId() + "/" + dup.order().itemId());
             }
 
             Map<String, Object> result = new LinkedHashMap<>();
@@ -88,7 +107,7 @@ public class OrderApiServer {
             ReceiptService.Result uploaded = receipts.uploadMissing();
             result.put("uploaded", uploaded.uploaded());
             result.put("failed", uploaded.failed());
-        } catch (IOException | SQLException e) {  // FTP 접속 오류 등
+        } catch (IOException | SQLException e) {  // FTP 접속 오류 등 (ReceiptService가 이력 기록)
             result.put("error", e.getMessage());
         }
         return result;
