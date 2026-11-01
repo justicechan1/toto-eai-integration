@@ -1,6 +1,7 @@
 package eai.order;
 
 import eai.db.DbInfo;
+import eai.db.IdGenerator;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -44,7 +45,7 @@ public class OrderRepository {
                             duplicates.add(order);
                             continue;
                         }
-                        lastId = OrderIdGenerator.next(lastId);
+                        lastId = IdGenerator.next(lastId);
                         ps.setString(1, lastId);
                         ps.setString(2, applicantKey);
                         ps.setString(3, order.userId());

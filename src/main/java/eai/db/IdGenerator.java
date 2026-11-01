@@ -1,12 +1,12 @@
-package eai.order;
+package eai.db;
 
 import java.util.regex.Pattern;
 
-public final class OrderIdGenerator {
+public final class IdGenerator {
 
     private static final Pattern ID = Pattern.compile("[A-Z][0-9]{3}");  // DB CHECK 제약과 같은 형식
 
-    private OrderIdGenerator() {
+    private IdGenerator() {
     }
 
     // 다음 ID 생성: A001 -> A002, A999 -> B001, 이전 ID가 없으면 A001
