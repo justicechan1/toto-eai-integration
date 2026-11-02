@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Map;
 
-
 public record AssignmentInfo(String applicantKey, DbInfo orderDb, DbInfo shipmentDb,
                              Map<String, String> ftp, byte[] sampleXml) {
 
