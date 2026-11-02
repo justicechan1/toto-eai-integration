@@ -52,9 +52,10 @@ public class Main {
             case "serve" -> serve(config);      // 주문 수신 API 서버 실행
             case "send-sample" -> sendSample(config, args.length > 1 ? Integer.parseInt(args[1]) : null);  // 샘플 주문 XML 전송 (건수 지정 가능)
             case "receipts" -> receipts(config);  // 영수증 없는 주문의 영수증 업로드
+            case "ftp-list" -> ftpList(config);   // FTP에 올라간 내 영수증 파일 확인
             case "ship" -> ship(config);          // 배송 배치 1회 실행
             case "trace" -> trace(args.length > 1 ? args[1] : null);  // 처리 이력 조회 (주문 ID 지정 가능)
-            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse|db-check|serve|send-sample [건수]|receipts|ship|trace [주문ID]\"");
+            default -> System.out.println("Usage: ./gradlew run --args=\"fetch|decrypt|parse|db-check|serve|send-sample [건수]|receipts|ftp-list|ship|trace [주문ID]\"");
         }
     }
 
@@ -95,6 +96,15 @@ public class Main {
         OrderRepository repository = new OrderRepository(info.orderDb(), info.applicantKey());
         ReceiptService.Result result = new ReceiptService(repository, new FtpUploader(info.ftp()), config.require("applicant.name"), LOG).uploadMissing();
         System.out.println("uploaded: " + result.uploaded().size() + ", failed: " + result.failed().size());
+    }
+
+    // FTP 업로드 폴더에서 내 이름으로 시작하는 영수증 파일 목록 출력 (공용 폴더)
+    private static void ftpList(AppConfig config) throws Exception {
+        String prefix = config.require("applicant.name") + "_";
+        List<String> mine = new FtpUploader(AssignmentInfo.load(RESPONSE_FILE, config.phone()).ftp()).listFileNames().stream()
+                .filter(name -> name.startsWith(prefix)).sorted().toList();
+        mine.forEach(System.out::println);
+        System.out.println("files: " + mine.size());
     }
 
     // 처리 이력 조회: 주문 ID를 주면 그 주문의 전체 이력, 없으면 주문별 마지막 단계

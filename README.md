@@ -79,6 +79,7 @@ curl -X POST http://localhost:8080/orders -H "Content-Type: application/xml; cha
 ```bash
 ./gradlew run --args="trace"           # 주문별 마지막 처리 단계 (어디까지 처리됐는지)
 ./gradlew run --args="trace A001"      # 주문 A001의 전체 처리 이력
+./gradlew run --args="ftp-list"        # FTP에 올라간 내 영수증 파일 목록 (지원자 이름으로 시작하는 파일)
 ./gradlew run --args="receipts"        # 영수증이 없는 주문만 FTP에 다시 업로드 (실패분 재시도)
 ./gradlew run --args="ship"            # 배송 배치 1회 실행
 ```
