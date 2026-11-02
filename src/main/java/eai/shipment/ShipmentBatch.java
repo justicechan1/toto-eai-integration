@@ -50,7 +50,9 @@ public class ShipmentBatch {
                         shipments.insert(conn, shipmentId, order.orderId(), order.order().itemId(), order.order().address());
                         lastId = shipmentId;
                     }
-                    orders.markShipped(order.orderId());  // 실패하면 다음 실행 때 existing으로 찾아 Y만 변경
+                    if (orders.markShipped(order.orderId()) == 0) {  // 그 사이 Y로 바뀌었거나 행이 없음, 성공으로 기록하지 않음
+                        throw new SQLException("STATUS not updated: no 'N' row for " + order.orderId());
+                    }  // 예외가 나면 다음 실행 때 existing으로 찾아 Y만 변경
                     shipped.put(order.orderId(), shipmentId);
                     log.write(order.orderId(), Stage.SHIP, ProcessLog.Result.OK,
                             "SHIPMENT_ID=" + shipmentId + ", STATUS=Y" + (recovered ? " (already shipped, status only)" : ""));

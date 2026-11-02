@@ -120,6 +120,23 @@ class ShipmentBatchTest {
     }
 
     @Test
+    void failsWhenStatusNotUpdated() throws Exception {  // STATUS 변경이 0행이면 성공으로 기록하지 않음
+        orders.saveAll(List.of(order("USER01", "ITEM01", "서울")));
+        OrderRepository noUpdate = new OrderRepository(orderDb, "KEY1") {
+            @Override
+            public int markShipped(String orderId) {  // 다른 처리가 먼저 Y로 바꾼 상황
+                return 0;
+            }
+        };
+
+        ShipmentBatch.Result result = new ShipmentBatch(noUpdate, new ShipmentRepository(shipmentDb, "KEY1"), log).runOnce();
+
+        assertTrue(result.shipped().isEmpty());
+        assertEquals(List.of("A001"), List.copyOf(result.failed().keySet()));
+        assertTrue(log.find("A001").get(0).contains("| SHIP | FAIL | STATUS not updated"));
+    }
+
+    @Test
     void ignoresOtherApplicants() throws SQLException {  // 다른 지원자 주문은 처리하지 않음
         new OrderRepository(orderDb, "OTHER").saveAll(List.of(order("USER09", "ITEM09", "서울")));
 
