@@ -27,7 +27,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -48,10 +47,10 @@ public class Main {
         switch (command) {
             case "fetch" -> fetch(config);      // 과제 API 호출 후 응답 저장
             case "decrypt" -> decrypt(config);  // 저장된 응답의 접속 정보 복호화
-            case "parse" -> parse();            // 샘플 주문 XML 파싱 결과 확인
+            case "parse" -> parse(config);      // 샘플 주문 XML 파싱 결과 확인
             case "db-check" -> dbCheck(config); // 주문/운송 DB 연결 확인
             case "serve" -> serve(config);      // 주문 수신 API 서버 실행
-            case "send-sample" -> sendSample(args.length > 1 ? Integer.parseInt(args[1]) : null);  // 샘플 주문 XML 전송 (건수 지정 가능)
+            case "send-sample" -> sendSample(config, args.length > 1 ? Integer.parseInt(args[1]) : null);  // 샘플 주문 XML 전송 (건수 지정 가능)
             case "receipts" -> receipts(config);  // 영수증 없는 주문의 영수증 업로드
             case "ship" -> ship(config);          // 배송 배치 1회 실행
             case "trace" -> trace(args.length > 1 ? args[1] : null);  // 처리 이력 조회 (주문 ID 지정 가능)
@@ -108,9 +107,8 @@ public class Main {
     }
 
     // 샘플 주문 XML을 주문 수신 API로 전송 후 응답 출력 (count가 있으면 앞에서부터 그 건수만)
-    private static void sendSample(Integer count) throws Exception {
-        JsonNode response = new ObjectMapper().readTree(RESPONSE_FILE.toFile());
-        byte[] xml = Base64.getDecoder().decode(response.get("SAMPLE_DATA").asText());  // 원본 EUC-KR 바이트 그대로
+    private static void sendSample(AppConfig config, Integer count) throws Exception {
+        byte[] xml = AssignmentInfo.load(RESPONSE_FILE, config.phone()).sampleXml();  // 원본 EUC-KR 바이트 그대로
         if (count != null) {
             List<Order> orders = new OrderXmlParser().parse(xml).orders().stream().limit(count).toList();
             xml = toXml(orders).getBytes(Charset.forName("EUC-KR"));  // 일부만 같은 형식의 XML로 다시 만듦
@@ -171,10 +169,8 @@ public class Main {
     }
 
     // 샘플 주문 XML 파싱 결과 출력
-    private static void parse() throws Exception {
-        JsonNode response = new ObjectMapper().readTree(RESPONSE_FILE.toFile());
-        byte[] xml = Base64.getDecoder().decode(response.get("SAMPLE_DATA").asText());  // Base64 -> EUC-KR 바이트
-        OrderXmlParser.Result result = new OrderXmlParser().parse(xml);
+    private static void parse(AppConfig config) throws Exception {
+        OrderXmlParser.Result result = new OrderXmlParser().parse(AssignmentInfo.load(RESPONSE_FILE, config.phone()).sampleXml());
 
         System.out.println("orders: " + result.orders().size() + ", unmatched items: " + result.unmatchedItems().size());
         result.orders().stream().limit(3).forEach(order -> System.out.println("  " + order));  // 앞 3건만 출력
